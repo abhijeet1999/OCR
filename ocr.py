@@ -1,24 +1,15 @@
 
+import re
+import cv2
+import pytesseract 
+from PIL import Image
+import numpy as np
+import json
+import time
+import os
 
-# Python program to extract text from all the images in a folder 
-# storing the text in corresponding files in a different folder 
-from PIL import Image 
-import pytesseract as pt 
-import os 
-# So, that was a bit magical, and really required a fine reading of the docs to figure out
-# that the number "1" is a string parameter to the convert function actually does the binarization.
-# But you actually have all of the skills you need to write this functionality yourself.
-# Lets walk through an example. First, lets define a function called binarize, which takes in
-# an image and a threshold value:
 def binarize(image_to_transform, threshold):
 	output_image=image_to_transform.convert("L")
-	# the threshold value is usually provided as a number between 0 and 255, which
-    # is the number of bits in a byte.
-    # the algorithm for the binarization is pretty simple, go through every pixel in the
-    # image and, if it's greater than the threshold, turn it all the way up (255), and
-    # if it's lower than the threshold, turn it all the way down (0).
-    # so lets write this in code. First, we need to iterate over all of the pixels in the
-    # image we want to work with
 	for x in range(output_image.width):
 		for y in range(output_image.height):
 			if output_image.getpixel((x,y))< threshold:
@@ -26,42 +17,47 @@ def binarize(image_to_transform, threshold):
 			else:
 				output_image.putpixel( (x,y), 255 )
 	return output_image
-	
-def main(): 
-	# path for the folder for getting the raw images (change path accordingly )
-	path ="images"
-	imagePath=" "
 
-	# path for the folder for getting the output 
-	tempPath ="text"
+start1 = time.process_time()
+start = time.process_time()
+path='diabtes'
+a_file = open("list", "r")
+myNames = []
+myNames = [line.strip() for line in a_file]
+a_file.close()
+Medicallist=myNames
 
-	# iterating the images inside the folder 
-	for imageName in os.listdir(path): 
-			
-		inputPath = os.path.join(path, imageName) 
-		img = Image.open(inputPath) 
-		d=binarize(img, 196)
-		d.show()
+for imageName in os.listdir(path):
+	print(imageName)
+	inputPath = os.path.join(path, imageName)
+	im =binarize(Image.open(inputPath), 196) 
+	img = np.array(im)
+	lines = re.split('\n',pytesseract.image_to_string(im))
+	print(time.process_time() - start)
+	text=[]
+	for i in range(len(lines)):
+		temp=[[j,i] for j in lines[i].split(" ")]
+		text.extend(temp)
+	result_dict={}
+	n_boxes = len(text)
+	for i in range(n_boxes):
+		for pattern in Medicallist:
+			if re.match(pattern, text[i][0]):
+				line = lines[text[i][1]].split(" ")
+				#print(text)
+				for j in range(len(line)):
+					if(any(map(str.isdigit, line[j]))):
+						#print(text[j])
+						result_dict.update({" ".join(line[:j]):line[j]})
+						break
+					elif(line[j]=="o1" or line[j]=="OL" ):
+						pass
 
-		# applying ocr using pytesseract for python 
-		text = pt.image_to_string(binarize(img, 176),config="-oem 3 --psm 6") 
-
-		# for removing the .jpg from the imagePath 
-		imagePath = imagePath[0:-4] 
-		#print(imagePath)
-
-		fullTempPath = os.path.join(tempPath, imageName+".txt") 
-		#print(text) 
-
-		# saving the text for every image in a separate .txt file 
-		file1 = open(fullTempPath, "w") 
-		file1.write(text) 
-		file1.close() 
-
-if __name__ == '__main__': 
-	main() 
-
-
-print("endddddddddddddddddddddddddddddddddd")
-
-
+					elif(line[j]=="DNR"):
+						result_dict.update({" ".join(line[:j]):line[j]})
+						break
+					
+	print(json.dumps(result_dict, indent = 4))
+	cv2.waitKey(0)
+	cv2.destroyAllWindows()
+print(time.process_time() - start1)
